@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AquaTwin AI — Urban Water Network Digital Twin</title>
+<meta name="description" content="AquaTwin AI: Real-time intelligent digital twin for urban water infrastructure monitoring, leak detection, AI-driven analytics and scenario simulation."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Space+Mono:wght@400;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="cursor-ring" id="cursor-ring"></div>
+<div class="cursor-dot"  id="cursor-dot"></div>
+<div id="toast-container"></div>
+<div id="node-tooltip">
+  <div class="tt-name" id="tt-name">Node</div>
+  <div class="tt-row"><span>Pressure</span><span class="tt-val" id="tt-pressure">—</span></div>
+  <div class="tt-row"><span>Flow Rate</span><span class="tt-val" id="tt-flow">—</span></div>
+  <div class="tt-row"><span>Quality</span><span class="tt-val" id="tt-quality">—</span></div>
+  <div class="tt-row"><span>Status</span><span class="tt-val" id="tt-status">—</span></div>
+</div>
+
+<div id="app">
+  <!-- ── HEADER ──────────────────────────────────── -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🌊</div>
+      <div>
+        <div class="logo-text">AquaTwin AI</div>
+        <div class="logo-sub">Urban Water Digital Twin</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div class="status-pill">
+        <div class="dot" id="sys-dot"></div>
+        <span id="sys-status-text">System Online</span>
+      </div>
+      <div class="status-pill">
+        <div class="dot" id="health-dot"></div>
+        <span>Health: <strong id="health-score">—</strong>%</span>
+      </div>
+      <div class="status-pill">
+        <span>⚡ <strong id="stat-pressure">—</strong> PSI</span>
+      </div>
+      <div class="status-pill">
+        <span>💧 <strong id="stat-flow">—</strong> L/m</span>
+      </div>
+      <span class="ws-badge disconnected" id="ws-badge">⬤ Connecting...</span>
+    </div>
+  </header>
+
+  <!-- ── TABS ───────────────────────────────────── -->
+  <nav>
+    <button class="tab-btn active" onclick="switchTab('network',this)" id="tab-network">
+      🗺 Network Map
+    </button>
+    <button class="tab-btn" onclick="switchTab('analytics',this)" id="tab-analytics">
+      📊 Analytics
+    </button>
+    <button class="tab-btn" onclick="switchTab('ai',this)" id="tab-ai">
+      🧠 AI Engine
+    </button>
+    <button class="tab-btn" onclick="switchTab('leak',this)" id="tab-leak">
+      🔍 Leak Detection <span class="badge" id="leak-badge" style="display:none">!</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('scenario',this)" id="tab-scenario">
+      🎮 Scenario Sim
+    </button>
+    <button class="tab-btn" onclick="switchTab('alerts',this)" id="tab-alerts">
+      🚨 Alerts <span class="badge" id="alert-count-badge">0</span>
+    </button>
+  </nav>
+
+  <!-- ── MAIN ───────────────────────────────────── -->
+  <main>
+
+    <!-- ════ TAB 1: NETWORK MAP ════ -->
+    <div class="tab-panel active" id="panel-network">
+      <div class="grid-4" style="margin-bottom:14px">
+        <div class="stat-tile"><div class="stat-label">Avg Pressure</div><div class="stat-value" id="net-pressure">—</div><div class="stat-unit">PSI</div></div>
+        <div class="stat-tile"><div class="stat-label">Avg Flow Rate</div><div class="stat-value" id="net-flow">—</div><div class="stat-unit">L/min</div></div>
+        <div class="stat-tile"><div class="stat-label">Water Quality</div><div class="stat-value good" id="net-quality">—</div><div class="stat-unit">WQI Index</div></div>
+        <div class="stat-tile"><div class="stat-label">System Health</div><div class="stat-value" id="net-health">—</div><div class="stat-unit">% Operational</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title"><span class="icon">🗺</span> Live Network Topology</div>
+        <div class="network-controls">
+          <button class="btn btn-danger btn-sm" onclick="simulateFailure()">⚠ Simulate Failure</button>
+          <button class="btn btn-primary btn-sm" onclick="recoverAll()">✅ Recover All</button>
+          <button class="btn btn-ghost btn-sm" onclick="refreshNetwork()">🔄 Refresh</button>
+          <span style="font-family:'Space Mono',monospace;font-size:0.68rem;color:var(--text-dim);margin-left:auto">Hover nodes for details • Click to select</span>
+        </div>
+        <canvas id="network-canvas"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="icon">🔲</span> Node Status Grid</div>
+        <div class="node-list" id="node-list"></div>
+      </div>
+    </div>
+
+    <!-- ════ TAB 2: ANALYTICS ════ -->
+    <div class="tab-panel" id="panel-analytics">
+      <div class="grid-4" style="margin-bottom:14px">
+        <div class="stat-tile"><div class="stat-label">Pressure</div><div class="stat-value" id="an-pressure">—</div><div class="stat-unit">PSI avg</div></div>
+        <div class="stat-tile"><div class="stat-label">Flow Rate</div><div class="stat-value" id="an-flow">—</div><div class="stat-unit">L/min avg</div></div>
+        <div class="stat-tile"><div class="stat-label">Water Quality</div><div class="stat-value good" id="an-quality">—</div><div class="stat-unit">WQI</div></div>
+        <div class="stat-tile"><div class="stat-label">Pump Energy</div><div class="stat-value" id="an-energy">—</div><div class="stat-unit">kWh</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="icon">📈</span> Pressure (PSI)</div>
+          <div class="chart-wrap"><canvas id="chart-pressure"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">💧</span> Flow Rate (L/min)</div>
+          <div class="chart-wrap"><canvas id="chart-flow"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">🧪</span> Water Quality Index</div>
+          <div class="chart-wrap"><canvas id="chart-quality"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">⚡</span> Pump Energy (kWh)</div>
+          <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ TAB 3: AI ENGINE ════ -->
+    <div class="tab-panel" id="panel-ai">
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-title"><span class="icon">🧠</span> AI Thinking Log</div>
+          <div id="ai-log-box"></div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="clearAiLog()">🗑 Clear</button>
+            <button class="btn btn-primary btn-sm" onclick="triggerAiAnalysis()">🔍 Run Analysis</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">📋</span> AI Recommendations</div>
+          <div id="reco-list"></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="generateRecommendations()">♻ Refresh Recommendations</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">⚙</span> Quick Scenario Actions</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-warn" onclick="quickScenario('drought')">🏜 Drought Protocol</button>
+          <button class="btn btn-danger" onclick="quickScenario('peak')">📈 Peak Demand Surge</button>
+          <button class="btn btn-primary" onclick="quickScenario('maintenance')">🔧 Maintenance Mode</button>
+          <button class="btn btn-ghost" onclick="quickScenario('optimize')">⚡ Energy Optimize</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ TAB 4: LEAK DETECTION ════ -->
+    <div class="tab-panel" id="panel-leak">
+      <div class="grid-2" style="margin-bottom:14px">
+        <div class="card">
+          <div class="card-title"><span class="icon">🔍</span> Leak Probability Heatmap</div>
+          <div id="leak-grid" style="grid-template-columns: repeat(10, 1fr); margin-bottom:10px"></div>
+          <div class="leak-legend">
+            <div class="legend-item"><div class="legend-swatch" style="background:#00e676"></div>Low (&lt;35%)</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:#ff9100"></div>Medium (35–60%)</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:#ff3d71"></div>High (&gt;60%)</div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm" onclick="scanAll()">🔬 Scan All Zones</button>
+            <button class="btn btn-warn btn-sm" onclick="deployRepair()">🔧 Deploy Repair</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="icon">📡</span> Node Leak Risk Assessment</div>
+          <div id="leak-node-list" style="max-height:360px;overflow-y:auto"></div>
+          <div style="margin-top:10px">
+            <button class="btn btn-ghost btn-sm" onclick="fetchLeakData()">🔄 Refresh Data</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════ TAB 5: SCENARIO SIM ════ -->
+    <div class="tab-panel" id="panel-scenario">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title"><span class="icon">🎮</span> Simulation Parameters</div>
+
+          <div class="slider-group">
+            <div class="slider-label"><span>👥 Population Growth</span><strong id="pg-val">50</strong>%</div>
+            <input type="range" id="sl-pop" min="0" max="100" value="50" oninput="document.getElementById('pg-val').textContent=this.value"/>
+          </div>
+          <div class="slider-group">
+            <div class="slider-label"><span>🏚 Infrastructure Age</span><strong id="ia-val">40</strong>%</div>
+            <input type="range" id="sl-age" min="0" max="100" value="40" oninput="document.getElementById('ia-val').textContent=this.value"/>
+          </div>
+          <div class="slider-group">
+            <div class="slider-label"><span>🌡 Climate Stress</span><strong id="cs-val">35</strong>%</div>
+            <input type="range" id="sl-climate" min="0" max="100" value="35" oninput="document.getElementById('cs-val').textContent=this.value"/>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="runScenario()">▶ Run Simulation</button>
+            <button class="btn btn-ghost" onclick="exportReport()">📄 Export Report</button>
+          </div>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div class="card-title" style="align-self:flex-start"><span class="icon">⚠</span> Risk Assessment Gauge</div>
+          <svg id="risk-gauge" width="200" height="130" viewBox="0 0 200 130">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:#00e676"/>
+                <stop offset="50%" style="stop-color:#ff9100"/>
+                <stop offset="100%" style="stop-color:#ff3d71"/>
+              </linearGradient>
+            </defs>
+            <path d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="16" stroke-linecap="round"/>
+            <path id="gauge-arc" d="M 20 110 A 80 80 0 0 1 180 110" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="0 251"/>
+          </svg>
+          <div class="gauge-label" id="gauge-score">—</div>
+          <div class="gauge-sub" id="gauge-label">Run a simulation to see results</div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px" id="scenario-results" style="display:none">
+        <div class="card-title"><span class="icon">📊</span> Simulation Results</div>
+        <div class="grid-4" style="margin-bottom:14px" id="scenario-metrics"></div>
+        <div id="scenario-insights"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="card-title"><span class="icon">🕓</span> Scenario History</div>
+        <div id="scenario-history" style="max-height:180px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- ════ TAB 6: ALERTS ════ -->
+    <div class="tab-panel" id="panel-alerts">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-family:'Space Mono',monospace;font-size:0.75rem;color:var(--text-dim)">
+          Showing active system alerts
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="fetchAlerts()">🔄 Refresh</button>
+          <button class="btn btn-danger btn-sm" onclick="clearResolved()">🗑 Clear Resolved</button>
+        </div>
+      </div>
+      <div id="alerts-list"></div>
+    </div>
+
+  </main>
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
